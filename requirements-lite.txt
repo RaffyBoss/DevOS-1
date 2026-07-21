@@ -1,0 +1,2 @@
+# Lite requirements
+-r requirements.txt

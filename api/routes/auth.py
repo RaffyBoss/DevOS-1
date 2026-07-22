@@ -324,12 +324,72 @@ async def logout(response: Response, request: Request, db: AsyncSession = Depend
     return {"status": "ok"}
 
 
+class SupabaseTokenReq(BaseModel):
+    token: str
+
+
+@router.post("/supabase/exchange")
+async def supabase_exchange(req: SupabaseTokenReq, response: Response, db: AsyncSession = Depends(get_db)):
+    """Exchange a Supabase access token (from OAuth or phone OTP) for a
+    local DevOS JWT. The caller must already have completed the Supabase
+    sign-in flow; this endpoint only verifies the token and issues a
+    local session."""
+    if not settings.has_supabase:
+        raise HTTPException(400, "Supabase is not configured on this server")
+
+    payload = decode_supabase_token(req.token)
+    if payload is None:
+        raise HTTPException(401, "Invalid Supabase token")
+
+    from governance.audit import AuditLogger, AuditEventType
+    user = await sync_supabase_user(db, payload)
+    local_token = make_jwt(user.id, user.is_admin)
+    response.set_cookie("devos_token", local_token, httponly=True, samesite="lax",
+                        secure=not settings.DEBUG,
+                        max_age=settings.JWT_EXPIRE_HOURS*3600)
+    AuditLogger().log(AuditEventType.LOGIN_SUCCESS, actor_id=user.id, tenant_id="default",
+                       action="supabase_exchange", outcome="success")
+    return {"token": local_token, "user": {"id": user.id, "username": user.username,
+                                            "email": user.email, "is_admin": user.is_admin,
+                                            "supabase_linked": True}}
+
+
 @router.get("/me")
 async def me(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_current_user(request, db)
     if not user: raise HTTPException(401)
     return {"id": user.id, "username": user.username, "email": user.email,
             "is_admin": user.is_admin, "supabase_linked": bool(user.supabase_id)}
+
+
+class SupabaseTokenReq(BaseModel):
+    token: str
+
+
+@router.post("/supabase/exchange")
+async def supabase_exchange(req: SupabaseTokenReq, response: Response, request: Request, db: AsyncSession = Depends(get_db)):
+    """Exchange a Supabase access token (from OAuth or phone OTP) for a
+    local DevOS JWT. The caller must already have completed the Supabase
+    sign-in flow; this endpoint only verifies the token and issues a
+    local session."""
+    if not settings.has_supabase:
+        raise HTTPException(400, "Supabase is not configured on this server")
+
+    payload = decode_supabase_token(req.token)
+    if payload is None:
+        raise HTTPException(401, "Invalid Supabase token")
+
+    from governance.audit import AuditLogger, AuditEventType
+    user = await sync_supabase_user(db, payload)
+    local_token = make_jwt(user.id, user.is_admin)
+    response.set_cookie("devos_token", local_token, httponly=True, samesite="lax",
+                        secure=not settings.DEBUG,
+                        max_age=settings.JWT_EXPIRE_HOURS*3600)
+    AuditLogger().log(AuditEventType.LOGIN_SUCCESS, actor_id=user.id, tenant_id="default",
+                       action="supabase_exchange", outcome="success")
+    return {"token": local_token, "user": {"id": user.id, "username": user.username,
+                                            "email": user.email, "is_admin": user.is_admin,
+                                            "supabase_linked": True}}
 
 
 @router.post("/supabase/sync")

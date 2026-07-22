@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useEffect, useCallback } from "react";
 import useStore from "./store/useStore";
-import { ThemeRoot } from "./components/layout/ThemeRoot";
 import { api, verifySession, subscribeToEvents } from "./services/api";
 import LoginScreen from "./components/auth/LoginScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -113,6 +112,23 @@ function HitlApprovalToasts() {
   );
 }
 
+async function handleSupabaseRedirect(setUser, setStatus) {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes("access_token")) return false;
+  const params = new URLSearchParams(hash.slice(1));
+  const accessToken = params.get("access_token");
+  if (!accessToken) return false;
+  try {
+    const user = await api.supabaseExchange(accessToken).then(r => { localStorage.setItem("devos_token", r.token); return r.user; });
+    setUser(user);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    return true;
+  } catch (e) {
+    setStatus("OAuth sign-in failed: " + e.message);
+    return false;
+  }
+}
+
 export default function App() {
   const {
     setFileTree, setProviders, setProvider, setWorkspaceSettings,
@@ -127,8 +143,10 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    verifySession().then((user) => setUser(user));
-  }, [setUser]);
+    handleSupabaseRedirect(setUser, setStatus).finally(() => {
+      verifySession().then((user) => setUser(user));
+    });
+  }, [setUser, setStatus]);
 
   const { addPendingHitlRequest, removePendingHitlRequest } = useStore();
   useEffect(() => {
@@ -196,12 +214,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       {!isAuthenticated ? (
-        <ThemeRoot>
-          <LoginScreen />
-        </ThemeRoot>
+        <LoginScreen />
       ) : (
-        <ThemeRoot>
-          <div className="h-screen w-screen flex bg-obsidian-950 overflow-hidden text-slate-200">
+        <div className="h-screen w-screen flex bg-obsidian-950 overflow-hidden text-slate-200">
           <GlobalSidebar />
           <CenterWorkspace />
           <RightDock />
@@ -211,8 +226,7 @@ export default function App() {
             <CmdKModal />
             <CommandPalette />
           </Suspense>
-          </div>
-        </ThemeRoot>
+        </div>
       )}
     </ErrorBoundary>
   );

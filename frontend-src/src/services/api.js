@@ -39,6 +39,23 @@ const TOKEN_KEY = "devos_token";
 const PROJECT_KEY = "devos_current_project";
 const DEFAULT_PROJECT = "default";
 
+export function baseUrl() { return BASE; }
+
+export async function supabaseExchange(accessToken) {
+  const r = await fetch(`${BASE}/api/auth/supabase/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: accessToken }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || `Token exchange failed: HTTP ${r.status}`);
+  }
+  const data = await r.json();
+  if (data?.token) setToken(data.token);
+  return data;
+}
+
 // ── Auth ──────────────────────────────────────────────────────
 // security-audit P2d: dual-auth token resolution. DevOS's own local JWT
 // (username/password -> bcrypt -> HS256 JWT, stored in localStorage under
@@ -103,7 +120,11 @@ export async function syncSupabaseSession() {
     const err = await r.json().catch(() => ({}));
     throw new Error(err.detail || `Supabase sync failed: HTTP ${r.status}`);
   }
-  return await r.json();
+  const data = await r.json();
+  // If the backend issued a local token, persist it so resolveAuthToken()
+  // prefers it on subsequent calls.
+  if (data?.token) setToken(data.token);
+  return data;
 }
 
 export async function logout() {
@@ -618,6 +639,8 @@ const providerConfigApi = {
 export const api = {
   health: () => req("/api/health"),
   getSettings: () => req("/api/models/settings"),
+  supabaseExchange,
+  baseUrl,
   ...notBuiltYet,
   ...aiApi,
   ...filesApi,

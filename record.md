@@ -1202,3 +1202,39 @@ was already generating real project files, but nothing in the frontend could tri
 - The new layout drops the title bar and status bar from the top-level view. Functionality like provider status, active file path, and Git branch display may need to be reintroduced in a future pass.
 - Mobile layout is not implemented; the new layout is desktop-only.
 - No real browser smoke-test; verification was via build and stub test only.
+
+---
+
+## Session 26 — Google OAuth + Phone OTP sign-in via Supabase
+
+**Goal:** add "Sign in with Google" and phone-number (SMS OTP) sign-in flows alongside the existing email/password form, using Supabase Auth as the identity provider and exchanging the Supabase access token for a local DevOS JWT.
+
+### Modified files
+| File | Change |
+|------|--------|
+| `frontend-src/src/services/supabase.js` | Added `signInWithGoogle()` (OAuth redirect), `signInWithPhone(phone)` (sends SMS OTP), `verifyPhoneOtp(phone, token)` (verifies the code), `signOutSupabase()`. `getToken()` now prefers a locally-issued DevOS token (`localStorage.devos_token`) so the rest of the app keeps working after the Supabase session is exchanged. |
+| `frontend-src/src/services/api.js` | Added `baseUrl()` and `supabaseExchange(accessToken)` — POSTs the Supabase access token to `/api/auth/supabase/exchange` and persists the returned local JWT. Exposed both on the `api` export object. `syncSupabaseSession()` now also persists any returned local token. |
+| `frontend-src/src/components/auth/LoginScreen.jsx` | Added Google sign-in button, a Password/Phone tab switcher, and a two-step phone OTP flow (send code → verify code). The existing email/password form remains the default and falls back to local auth when Supabase isn't configured. |
+| `frontend-src/src/components/auth/LoginScreen.css` | Added styles for `.login-oauth-btn`, `.login-google-icon`, `.login-divider`, and `.login-mode-tabs`. |
+| `frontend-src/src/App.jsx` | Added `handleSupabaseRedirect()` to parse the `#access_token=...` hash after a Google OAuth redirect, exchange it for a local JWT via `api.supabaseExchange()`, persist it, and clear the hash before `verifySession()` runs. |
+| `api/routes/auth.py` | Added `POST /api/auth/supabase/exchange`: accepts `{ token }` (a Supabase access token from OAuth or phone OTP), verifies it via the existing `decode_supabase_token()`, syncs a local `User` row via `sync_supabase_user()`, issues a local HS256 JWT via `make_jwt()`, sets the `devos_token` cookie, and returns `{ token, user }`. Reuses all the existing Supabase verification + user-sync machinery. |
+| `frontend/static/` + `frontend/templates/index.html` | Replaced with the fresh production build so `app.py` serves the new login UI immediately. |
+
+### Design decisions
+- **Supabase as identity provider, local JWT as session:** Google OAuth and phone OTP both end with a Supabase access token in the browser. Rather than making every backend call verify a Supabase token (JWKS fetch, etc.), the frontend exchanges it once via `POST /api/auth/supabase/exchange` and uses the resulting local HS256 JWT for all subsequent requests. This keeps the existing `devos_token` cookie/header flow intact and means `resolveAuthToken()` continues to work unchanged.
+- **Google OAuth uses redirect flow** (`signInWithOAuth` with `redirectTo: window.location.origin + window.location.pathname`); `App.jsx` parses the `#access_token=...` hash on load and clears it after exchange so it doesn't loop.
+- **Phone OTP uses two steps**: `signInWithOtp({ phone })` sends a code, then `verifyOtp({ phone, token, type: "sms" })` verifies it. After verification, `syncSupabaseSession()` exchanges the resulting session for a local JWT.
+- **Email/password path unchanged**: existing local admin accounts and Supabase email/password accounts continue to work exactly as before. The Google button and Phone tab only appear when Supabase is configured (`REACT_APP_SUPABASE_URL` + `REACT_APP_SUPABASE_ANON_KEY`).
+
+### Tested
+- `cd frontend-src && npm run build` completed successfully with the new components.
+- `python3 -m pytest tests/test_rbac.py tests/test_identity_context.py tests/test_capability_registry.py tests/test_workflow.py tests/test_evidence.py tests/test_audit.py tests/test_router.py -q` — 110 tests pass (no backend regressions).
+- `api/routes/auth.py` compiles cleanly (`python3 -m compileall`).
+- Synced the fresh production build into `frontend/static/` and `frontend/templates/index.html`.
+- Did **not** run the app in a real browser or against a live Supabase project — this sandbox has no browser and no Supabase credentials configured. The Google OAuth redirect URL, phone OTP delivery, and token exchange are wired per Supabase's documented flows but have not been end-to-end tested here.
+
+### Known follow-ups
+- **Supabase project configuration required**: Google OAuth and phone OTP must be enabled in the Supabase dashboard (Authentication → Providers → Google; Authentication → Sign In / Providers → Phone). SMS provider (Twilio/MessageBird) must be configured for phone OTP to actually deliver. These are project-side settings, not code changes.
+- **Redirect URL**: the Google OAuth redirect is set to `window.location.origin + window.location.pathname`. For production, add the exact URL to Supabase's "Redirect URLs" allowlist (Authentication → URL Configuration).
+- **No real end-to-end test** of the Google redirect flow or phone OTP delivery was possible from this sandbox. Worth a real browser smoke-test with live Supabase credentials the first time this runs somewhere with access.
+- The existing `ProjectBuilderPanel.render.test.js` still fails on `jsdom-global` environment setup (pre-existing, unrelated to this session's changes).

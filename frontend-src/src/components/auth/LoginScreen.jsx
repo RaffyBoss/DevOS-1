@@ -104,10 +104,10 @@ export default function LoginScreen() {
     if (mode === MODE.PHONE) phoneRef.current?.focus();
   }, [mode]);
 
-  async function handleSupabaseSession(user) {
+  async function handleSupabaseSession() {
     const synced = await syncSupabaseSession();
-      if (user?.token) localStorage.setItem("devos_token", user.token);
-    setUser(synced);
+    if (synced?.token) localStorage.setItem("devos_token", synced.token);
+    setUser(synced.user || synced);
   }
 
   async function handleGoogleSignIn() {

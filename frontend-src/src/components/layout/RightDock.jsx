@@ -9,7 +9,7 @@ export default function RightDock() {
   return (
     <aside className="w-[420px] flex-shrink-0 flex flex-col glass border-l border-white/[0.08] overflow-hidden">
       <div className="h-9 flex items-center px-3 border-b border-white/[0.08] text-xs font-semibold text-slate-300 uppercase tracking-wider">
-        Cursor IDE
+        DevOS IDE
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <CodeEditor />

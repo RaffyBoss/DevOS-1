@@ -282,14 +282,40 @@ const terminalApi = {
 };
 
 const chatApi = {
-  async *streamChat({ providerId, model, message, session_id, system_prompt }) {
+  // Accepts the rich shape ChatSidebar sends ({ providerId, model, messages,
+  // system, activeFile, mentionedFiles, useCodebaseContext }) and translates
+  // it to the backend's flat /api/chat/send contract ({ message, session_id,
+  // provider, model, system_prompt }). The backend's /send route doesn't yet
+  // accept a messages array or context fields, so we take the last user
+  // message from `messages` (or fall back to `message`) and pass `system` as
+  // `system_prompt`. The richer context (activeFile, mentionedFiles,
+  // useCodebaseContext) is intentionally dropped here rather than silently
+  // breaking — the backend has no route that accepts them yet.
+  async *streamChat({
+    providerId,
+    model,
+    message,
+    messages,
+    session_id,
+    system,
+    system_prompt,
+  }) {
     const token = getToken();
+    const finalMessage =
+      message ||
+      (Array.isArray(messages) && messages.length
+        ? [...messages].reverse().find((m) => m.role === "user")?.content
+        : undefined);
+    if (!finalMessage) {
+      yield { error: "No message to send." };
+      return;
+    }
     const body = {
-      message,
+      message: finalMessage,
       session_id,
       provider: providerId,
       model,
-      system_prompt,
+      system_prompt: system_prompt || system,
     };
     const r = await fetch(`${BASE}/api/chat/send`, {
       method: "POST",

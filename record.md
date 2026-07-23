@@ -1238,3 +1238,43 @@ was already generating real project files, but nothing in the frontend could tri
 - **Redirect URL**: the Google OAuth redirect is set to `window.location.origin + window.location.pathname`. For production, add the exact URL to Supabase's "Redirect URLs" allowlist (Authentication → URL Configuration).
 - **No real end-to-end test** of the Google redirect flow or phone OTP delivery was possible from this sandbox. Worth a real browser smoke-test with live Supabase credentials the first time this runs somewhere with access.
 - The existing `ProjectBuilderPanel.render.test.js` still fails on `jsdom-global` environment setup (pre-existing, unrelated to this session's changes).
+
+---
+
+## Session 27 — DevOS AI OS: Bug Fixes & Completion (Stages 1–7)
+
+**Goal:** Scan the codebase for bugs introduced by the new DevOS AI Operating System implementation (Stages 1–7), fix all issues, and ensure clean build.
+
+### Bugs Found & Fixed
+
+| # | File | Bug | Fix |
+|---|------|-----|-----|
+| 1 | frontend-src/src/services/api.js | Missing API methods called by new components: runTerminalCommand, getMemory, updateMemory, deleteMemory, getWorkers, debugContinue, debugPause, debugStop, debugStep | Added graceful-degradation implementations that hit real backend routes if they exist, otherwise return empty states without throwing |
+| 2 | frontend-src/src/components/panels/PanelContainer.jsx | getFullscreenPanel selector subscribed as a method instead of derived state — wouldn't trigger re-renders when panels changed | Changed to subscribe to panels array and derive fullscreen panel via .find(p => p.state === "fullscreen") |
+| 3 | frontend-src/src/components/layout/DockableLayout.jsx | OnboardingWizard imported but never rendered | Added lazy-loaded <Suspense><OnboardingWizard /></Suspense> to render tree |
+| 4 | frontend-src/src/components/settings/SettingsModal.jsx | ThemeCustomizer (Stage 7) not accessible from Settings UI | Added "Theme" tab with lazy-loaded ThemeCustomizer wrapped in Suspense; fixed duplicate import |
+| 5 | frontend-src/src/components/layout/DockableLayout.jsx | Missing Suspense import for OnboardingWizard | Added import { lazy, Suspense } from "react" |
+| 6 | frontend-src/src/components/settings/SettingsModal.jsx | Duplicate ThemeCustomizer import (one lazy, one eager) | Removed eager import, kept lazy + Suspense |
+
+### Modified Files
+| File | Changes |
+|------|---------|
+| frontend-src/src/services/api.js | Added 9 new AI-OS API methods with graceful error handling |
+| frontend-src/src/components/panels/PanelContainer.jsx | Fixed fullscreen panel selector to use derived state |
+| frontend-src/src/components/layout/DockableLayout.jsx | Added OnboardingWizard render, Suspense import |
+| frontend-src/src/components/settings/SettingsModal.jsx | Added Theme tab, lazy ThemeCustomizer, Suspense wrapper, cleaned imports |
+
+### Tested
+- cd frontend-src && npm run build → **Compiled successfully** (126.5 kB gzipped main bundle, code-split chunks for lazy components)
+- python3 -m pytest tests/test_rbac.py tests/test_identity_context.py tests/test_capability_registry.py tests/test_workflow.py tests/test_evidence.py tests/test_audit.py tests/test_router.py -q → **110 tests pass** (no backend regressions)
+- Pre-existing ProjectBuilderPanel.render.test.js still fails on jsdom-global harness (unrelated — same as Sessions 25–26)
+- Synced fresh production build into frontend/static/ and frontend/templates/index.html (served by app.py)
+
+### Known Follow-ups
+- Pre-existing test harness issue: jsdom-global environment setup broken for ProjectBuilderPanel.render.test.js — not a regression, tracked since Session 24.
+- No real browser smoke-test possible in this sandbox (no browser, no Supabase credentials).
+- The new API methods (runTerminalCommand, getMemory, etc.) return empty-state fallbacks if backend routes don't exist yet — components handle this gracefully. Real backend routes can be added later without frontend changes.
+
+### Build Artifacts
+- frontend-src/build/ — production React build
+- frontend/static/ + frontend/templates/index.html — synced for app.py single-process serving

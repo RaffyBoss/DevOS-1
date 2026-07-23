@@ -686,6 +686,32 @@ export const api = {
   ...mcpApi,
   ...marketplaceApi,
   ...providerConfigApi,
+  // ── AI OS extensions (Stage 3-6 frontend) ─────────────────
+  // These gracefully degrade: if the backend route doesn't exist yet,
+  // the component catches the error and shows empty state.
+  runTerminalCommand: (cmd) =>
+    req(`/api/terminal/${getCurrentProject()}/run`, {
+      method: "POST",
+      body: JSON.stringify({ command: cmd }),
+    }).catch((e) => { throw e; }),
+  getMemory: (params = {}) =>
+    req(`/api/memory/search`, {
+      method: "POST",
+      body: JSON.stringify({ ...params }),
+    }).catch(() => ({ items: [], memories: [] })),
+  updateMemory: (id, patch) =>
+    req(`/api/memory/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }).catch(() => null),
+  deleteMemory: (id) =>
+    req(`/api/memory/${id}`, { method: "DELETE" }).catch(() => null),
+  getWorkers: () =>
+    req(`/api/workers`).catch(() => ({ agents: [], workers: [] })),
+  debugContinue: () => req(`/api/debug/continue`, { method: "POST" }).catch(() => null),
+  debugPause: () => req(`/api/debug/pause`, { method: "POST" }).catch(() => null),
+  debugStop: () => req(`/api/debug/stop`, { method: "POST" }).catch(() => null),
+  debugStep: () => req(`/api/debug/step`, { method: "POST" }).catch(() => null),
 };
 
 export { subscribeToEvents };

@@ -25,6 +25,10 @@ import { useGlobalShortcuts } from "../../hooks/useGlobalShortcuts";
 import { useResponsive } from "../../hooks/useResponsive";
 import { applyThemeToDOM } from "../../store/themeStore";
 import { useWorkspaceStore } from "../../store/workspaceStore";
+import { lazy, Suspense } from "react";
+
+// Lazy load onboarding (only shows on first run)
+const OnboardingWizard = lazy(() => import("../onboarding/OnboardingWizard"));
 
 export default function DockableLayout() {
   // Initialize global shortcuts
@@ -65,6 +69,11 @@ export default function DockableLayout() {
         {showCheatsheet && (
           <ShortcutCheatsheet shortcuts={shortcuts} onClose={toggleCheatsheet} />
         )}
+
+        {/* Onboarding wizard (first run only) */}
+        <Suspense fallback={null}>
+          <OnboardingWizard />
+        </Suspense>
       </div>
     </DndProvider>
   );

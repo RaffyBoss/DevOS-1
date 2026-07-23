@@ -92,8 +92,8 @@ function FloatingPanels() {
  * Render the fullscreen panel overlay (if any).
  */
 function FullscreenPanel() {
-  const getFullscreenPanel = usePanelStore((s) => s.getFullscreenPanel);
-  const panel = getFullscreenPanel();
+  const panels = usePanelStore((s) => s.panels);
+  const panel = panels.find((p) => p.state === "fullscreen");
 
   if (!panel) return null;
 

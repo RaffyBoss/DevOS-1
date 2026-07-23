@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { X, CheckCircle, AlertCircle, ExternalLink, Save, Loader, Search, Download, Package } from "lucide-react";
 import useStore from "../../store/useStore";
 import { api } from "../../services/api";
+
+// Lazy load ThemeCustomizer to avoid heavy initial bundle
+const ThemeCustomizer = lazy(() => import("../settings/ThemeCustomizer"));
 
 const PROVIDER_LINKS = {
   anthropic:"https://console.anthropic.com/keys", openrouter:"https://openrouter.ai/keys",
@@ -357,7 +360,7 @@ export default function SettingsModal() {
   if (!settingsOpen) return null;
   const s = local || {};
 
-  const TABS = ["providers","editor","ai","git","ui","marketplace","ucip"];
+  const TABS = ["providers","editor","ai","git","ui","theme","marketplace","ucip"];
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setSettingsOpen(false); }}>
@@ -466,6 +469,14 @@ export default function SettingsModal() {
                   onChange={v=>patch("ui","theme",v)}/>
                 <NumInput label="Terminal Font Size" value={s.ui.terminalFontSize} min={10} max={24} onChange={v=>patch("ui","terminalFontSize",v)}/>
                 <Toggle label="Show Breadcrumbs" value={s.ui.showBreadcrumbs} onChange={v=>patch("ui","showBreadcrumbs",v)}/>
+              </div>
+            )}
+
+            {tab === "theme" && (
+              <div className="settings-section">
+                <Suspense fallback={<div className="settings-hint">Loading theme customizer...</div>}>
+                  <ThemeCustomizer />
+                </Suspense>
               </div>
             )}
 

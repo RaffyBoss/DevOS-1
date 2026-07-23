@@ -1,18 +1,12 @@
 import React, { Suspense, lazy, useEffect, useCallback } from "react";
 import useStore from "./store/useStore";
 import { api, verifySession, subscribeToEvents } from "./services/api";
+import { ThemeProvider } from "./theme/ThemeContext";
 import LoginScreen from "./components/auth/LoginScreen";
 import ErrorBoundary from "./components/ErrorBoundary";
+import DockableLayout from "./components/layout/DockableLayout";
 
-import GlobalSidebar from "./components/layout/GlobalSidebar";
-import RightDock from "./components/layout/RightDock";
-
-const AutomationHub = lazy(() => import("./components/automation/AutomationHub"));
-const FileTreeWrapper = lazy(() => import("./components/automation/FileTreeWrapper"));
-const ChatSidebar = lazy(() => import("./components/sidebar/ChatSidebar"));
-const TerminalPanel = lazy(() => import("./components/terminal/TerminalPanel"));
-const GitPanel = lazy(() => import("./components/sidebar/GitPanel"));
-const WorkersPanel = lazy(() => import("./components/workers/WorkersPanel"));
+// Lazy load modals
 const SettingsModal = lazy(() => import("./components/settings/SettingsModal"));
 const CmdKModal = lazy(() => import("./components/editor/CmdKModal"));
 const CommandPalette = lazy(() => import("./components/editor/CommandPalette"));
@@ -23,47 +17,9 @@ const Spin = () => (
   </div>
 );
 
-function CenterWorkspace() {
-  const { activeView, setActiveView } = useStore();
-
-  return (
-    <main className="flex-1 min-w-0 flex flex-col h-full bg-obsidian-950/60 obsidian-grid relative overflow-hidden">
-      <div className="h-10 flex items-center justify-between px-4 border-b border-white/[0.08] glass z-10">
-        <h1 className="text-sm font-semibold tracking-wide text-slate-200">
-          {activeView === "automation" && "Automation Switcher"}
-          {activeView === "files" && "Explorer"}
-          {activeView === "chat" && "Conversation"}
-          {activeView === "terminal" && "Terminal"}
-          {activeView === "git" && "Source Control"}
-          {activeView === "workers" && "Agent Workers"}
-        </h1>
-        {activeView !== "automation" && (
-          <button
-            onClick={() => setActiveView("automation")}
-            className="text-xs px-3 py-1.5 rounded-md bg-white/[0.06] text-slate-300 hover:bg-white/[0.10] transition"
-          >
-            ← Back to Flow
-          </button>
-        )}
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-hidden p-4">
-        <Suspense fallback={<Spin />}>
-          {activeView === "automation" && <AutomationHub />}
-          {activeView === "files" && <FileTreeWrapper title="Project Files" />}
-          {activeView === "chat" && <ChatSidebar />}
-          {activeView === "terminal" && <TerminalPanel />}
-          {activeView === "git" && <GitPanel />}
-          {activeView === "workers" && <WorkersPanel />}
-        </Suspense>
-      </div>
-    </main>
-  );
-}
-
 function HitlApprovalToasts() {
   const { pendingHitlRequests, removePendingHitlRequest, setStatus } = useStore();
-  if (!pendingHitlRequests?.length) return null;
+  if (!pendingHitlRequests || !pendingHitlRequests.length) return null;
 
   const handleApprove = async (reqId) => {
     try {
@@ -71,7 +27,7 @@ function HitlApprovalToasts() {
       setStatus("HITL approved");
       removePendingHitlRequest(reqId);
     } catch (e) {
-      setStatus(`Approval failed: ${e.message}`);
+      setStatus("Approval failed: " + e.message);
     }
   };
   const handleDeny = async (reqId) => {
@@ -80,28 +36,30 @@ function HitlApprovalToasts() {
       setStatus("HITL denied");
       removePendingHitlRequest(reqId);
     } catch (e) {
-      setStatus(`Denial failed: ${e.message}`);
+      setStatus("Deny failed: " + e.message);
     }
   };
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-sm">
+    <div className="fixed top-4 right-4 z-[600] flex flex-col gap-3 max-w-sm">
       {pendingHitlRequests.map((req) => (
-        <div key={req.id} className="glass-panel p-4 border-l-4 border-l-mint-400">
+        <div key={req.id} className="glass-panel p-4 border-l-4" style={{ borderLeftColor: "var(--accent)" }}>
           <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-slate-100">
-            <span className="text-mint-400">⚡</span> Human Approval Required
+            <span style={{ color: "var(--accent)" }}>⚡</span> Human Approval Required
           </div>
           <div className="text-xs text-slate-300 mb-3 leading-relaxed">{req.description}</div>
           <div className="flex items-center gap-2 justify-end">
             <button
               onClick={() => handleDeny(req.id)}
-              className="px-3 py-1.5 rounded-md bg-white/[0.06] text-slate-300 text-xs hover:bg-white/[0.10]"
+              className="px-3 py-1.5 rounded-md text-slate-300 text-xs hover:bg-white/[0.10]"
+              style={{ background: "var(--bg-3)" }}
             >
               Deny
             </button>
             <button
               onClick={() => handleApprove(req.id)}
-              className="px-3 py-1.5 rounded-md bg-mint-500 text-obsidian-900 text-xs font-semibold hover:bg-mint-400"
+              className="px-3 py-1.5 rounded-md text-xs font-semibold text-white"
+              style={{ background: "var(--accent)" }}
             >
               Approve
             </button>
@@ -119,7 +77,10 @@ async function handleSupabaseRedirect(setUser, setStatus) {
   const accessToken = params.get("access_token");
   if (!accessToken) return false;
   try {
-    const user = await api.supabaseExchange(accessToken).then(r => { localStorage.setItem("devos_token", r.token); return r.user; });
+    const user = await api.supabaseExchange(accessToken).then((r) => {
+      localStorage.setItem("devos_token", r.token);
+      return r.user;
+    });
     setUser(user);
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
     return true;
@@ -134,21 +95,20 @@ export default function App() {
     setFileTree, setProviders, setProvider, setWorkspaceSettings,
     setIndexStats, setGitStatus,
     setUser, setStatus,
-    setChatOpen, setSettingsOpen, setTerminalOpen, setPaletteOpen,
-    isAuthenticated, authChecked, theme,
+    setPaletteOpen, setSettingsOpen,
+    isAuthenticated, authChecked,
   } = useStore();
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+  const { addPendingHitlRequest, removePendingHitlRequest } = useStore();
 
+  // Auth check
   useEffect(() => {
     handleSupabaseRedirect(setUser, setStatus).finally(() => {
       verifySession().then((user) => setUser(user));
     });
   }, [setUser, setStatus]);
 
-  const { addPendingHitlRequest, removePendingHitlRequest } = useStore();
+  // Event subscription
   useEffect(() => {
     if (!isAuthenticated) return;
     const unsub = subscribeToEvents(
@@ -163,6 +123,7 @@ export default function App() {
     return () => unsub();
   }, [isAuthenticated, addPendingHitlRequest, removePendingHitlRequest]);
 
+  // API initialization
   useEffect(() => {
     if (!isAuthenticated) return;
     api.getProviders().then((p) => {
@@ -179,7 +140,9 @@ export default function App() {
     api.gitStatus().then(setGitStatus).catch(() => {});
   }, [isAuthenticated, setFileTree, setProviders, setProvider, setWorkspaceSettings, setIndexStats, setGitStatus]);
 
+  // File watcher WebSocket
   useEffect(() => {
+    if (!isAuthenticated) return;
     const wsBase = process.env.REACT_APP_DEVOS_URL
       ? process.env.REACT_APP_DEVOS_URL.replace(/^http/, "ws")
       : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
@@ -187,25 +150,30 @@ export default function App() {
     ws.onmessage = () => api.getTree().then(({ tree }) => setFileTree(tree || [])).catch(() => {});
     ws.onerror = () => {};
     return () => ws.close();
-  }, [setFileTree]);
+  }, [isAuthenticated, setFileTree]);
 
+  // Keyboard shortcuts (delegated to useGlobalShortcuts inside DockableLayout)
   const handleKey = useCallback((e) => {
     const mod = e.ctrlKey || e.metaKey;
-    const { terminalOpen, chatOpen } = useStore.getState();
-    if (mod && e.key === "p" && !e.shiftKey) { e.preventDefault(); setPaletteOpen(true); }
-    if (mod && e.key === "`") { e.preventDefault(); setTerminalOpen(!terminalOpen); }
-    if (mod && e.shiftKey && e.key === "L") { e.preventDefault(); setChatOpen(!chatOpen); }
-    if (mod && e.key === ",") { e.preventDefault(); setSettingsOpen(true); }
-  }, [setChatOpen, setSettingsOpen, setTerminalOpen, setPaletteOpen]);
+    if (mod && e.key === "p" && !e.shiftKey) {
+      e.preventDefault();
+      setPaletteOpen(true);
+    }
+    if (mod && e.key === ",") {
+      e.preventDefault();
+      setSettingsOpen(true);
+    }
+  }, [setPaletteOpen, setSettingsOpen]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [handleKey]);
 
+  // Loading state
   if (!authChecked) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-obsidian-950 text-slate-300">
+      <div className="h-screen w-screen flex items-center justify-center text-slate-300" style={{ background: "var(--bg-0)" }}>
         <Spin />
       </div>
     );
@@ -213,21 +181,21 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      {!isAuthenticated ? (
-        <LoginScreen />
-      ) : (
-        <div className="h-screen w-screen flex bg-obsidian-950 overflow-hidden text-slate-200">
-          <GlobalSidebar />
-          <CenterWorkspace />
-          <RightDock />
-          <HitlApprovalToasts />
-          <Suspense fallback={null}>
-            <SettingsModal />
-            <CmdKModal />
-            <CommandPalette />
-          </Suspense>
-        </div>
-      )}
+      <ThemeProvider>
+        {!isAuthenticated ? (
+          <LoginScreen />
+        ) : (
+          <>
+            <DockableLayout />
+            <HitlApprovalToasts />
+            <Suspense fallback={null}>
+              <SettingsModal />
+              <CmdKModal />
+              <CommandPalette />
+            </Suspense>
+          </>
+        )}
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

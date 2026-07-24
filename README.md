@@ -1,5 +1,7 @@
 # DevOS V4 — Agency Operating System
 
+![CI](https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/actions/workflows/ci.yml/badge.svg)
+
 A production-oriented AI operating system for autonomous and human-in-the-loop agency work.
 DevOS routes user goals through a multi-provider Brain, dispatches them to specialized
 worker personas, executes generated code in a sandboxed layer, and governs every action

@@ -44,6 +44,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
 
   # ── Standard Profile ───────────────────────────────────────────────────────
   # Requires Supabase project (set SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY)
@@ -74,6 +82,14 @@ services:
       - devos_standard_data:/app/data
       - devos_standard_workspace:/app/workspace
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
 
   # ── Enterprise Profile ─────────────────────────────────────────────────────
   # Full stack: Redis for caching/pubsub, Postgres for audit, monitoring
@@ -92,6 +108,42 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  postgres:
+    profiles: ["enterprise"]
+    image: pgvector/pgvector:pg16
+    container_name: devos-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=devos
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-devos_password}
+      - POSTGRES_DB=devos
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devos -d devos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
 
   devos-enterprise:
     profiles: ["enterprise"]
@@ -115,6 +167,7 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql+asyncpg://devos:${POSTGRES_PASSWORD:-devos_password}@postgres:5432/devos
       - BILLING_BACKEND=stripe
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
     volumes:
@@ -123,7 +176,17 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
 
 volumes:
   devos_data:
@@ -133,3 +196,4 @@ volumes:
   devos_enterprise_data:
   devos_enterprise_workspace:
   redis_data:
+  postgres_data:

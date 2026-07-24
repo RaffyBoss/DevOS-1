@@ -133,6 +133,13 @@ class Settings(BaseSettings):
     SCRIPT_TIMEOUT: int = 60
     WEBHOOK_SECRET: str = secrets.token_hex(16)
 
+    # Worker concurrency (for uvicorn --workers)
+    # micro: 1 (personal use), standard: 2, enterprise: 4
+    WEB_CONCURRENCY: int = 1
+
+    # API documentation (OpenAPI/Swagger/Redoc) — disable in production
+    ENABLE_API_DOCS: bool = True
+
     # Notifications
     NTFY_URL: str = ""
     SMTP_HOST: str = ""

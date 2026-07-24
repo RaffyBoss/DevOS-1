@@ -375,7 +375,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         return response
 
-app = FastAPI(title="DevOS", version="3.0.0", lifespan=lifespan)
+# API docs (OpenAPI/Swagger/Redoc) — disable in production unless explicitly enabled
+# Production default: docs disabled (security-audit P3c)
+docs_url = None if not settings.ENABLE_API_DOCS else "/docs"
+redoc_url = None if not settings.ENABLE_API_DOCS else "/redoc"
+openapi_url = None if not settings.ENABLE_API_DOCS else "/openapi.json"
+
+app = FastAPI(
+    title="DevOS",
+    version="3.0.0",
+    lifespan=lifespan,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
+)
 # Middleware registration order matters (security-audit P4f/P4g): Starlette
 # wraps middleware in REVERSE registration order, so the FIRST middleware
 # added here becomes the OUTERMOST layer (runs first on the way in, last on

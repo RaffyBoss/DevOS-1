@@ -33,12 +33,18 @@ BASE_DIR = Path(__file__).resolve().parent
 def cmd_start(args):
     """Start the DevOS server."""
     import uvicorn
+    from core.config import settings
     port = args.port or int(os.getenv("DEVOS_PORT", "8000"))
     host = args.host or os.getenv("DEVOS_HOST", "0.0.0.0")
     print(f"\n  ⚡ DevOS v{VERSION} — Micro Profile")
     print(f"  🌐 http://{host}:{port}")
     print(f"  📋 http://{host}:{port}/api/health\n")
+    # uvicorn doesn't support reload + workers together
+    workers = settings.WEB_CONCURRENCY if not args.dev else 1
+    if args.dev and settings.WEB_CONCURRENCY > 1:
+        print(f"  ⚠️  Reload mode enabled — forcing workers=1 (uvicorn limitation)")
     uvicorn.run("app:app", host=host, port=port, reload=args.dev,
+                workers=workers,
                 log_level="info" if not args.quiet else "warning")
 
 

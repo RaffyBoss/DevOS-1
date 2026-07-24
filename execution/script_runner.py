@@ -15,6 +15,13 @@ This module is the single place that:
   4. Triggers any enabled ScriptChain children whose `condition` matches
      the run's outcome, recursively -- giving Flow basic conditional
      branching without a full workflow-graph engine.
+
+CRITICAL: Scheduled and webhook-triggered script executions now run in the
+hardened SandboxedExecutor (governance/sandbox.py) which enforces CPU time,
+memory, file descriptor, and output limits, strips sensitive env vars, and
+runs in an isolated temp directory. The manual "Run" button in the UI still
+uses the unsandboxed ExecutionLayer (execution/runner.py) for backward
+compatibility with existing user workflows that may need broader access.
 """
 import logging
 from datetime import datetime, timezone
@@ -36,7 +43,7 @@ async def run_and_record(script_id: str, trigger: str = "manual", _depth: int = 
     deeper than 10 hops are silently stopped rather than recursing forever.
     """
     from core.database import AsyncSessionLocal, Script, ScriptRun, ScriptChain
-    from execution.runner import ExecutionLayer
+    from governance.sandbox import SandboxedExecutor
     from governance.secrets_vault import get_user_secrets_dict
 
     if _depth > 10:
@@ -50,23 +57,45 @@ async def run_and_record(script_id: str, trigger: str = "manual", _depth: int = 
             return {"status": "error", "error": "script not found"}
         user_secrets = await get_user_secrets_dict(db, s.owner_id)
 
-    venv_path = None
-    env_vars = None
-    if s.language == "python":
-        candidate = Path("data/venvs") / s.id
-        if candidate.exists():
-            venv_path = str(candidate)
-    elif s.language == "node":
-        node_dir = Path("data/node_modules") / s.id
-        if node_dir.exists():
-            env_vars = {"NODE_PATH": str(node_dir / "node_modules")}
+    # Use SandboxedExecutor for scheduled/webhook runs (hardened), but keep
+    # ExecutionLayer for manual runs (backward compatibility with existing
+    # user scripts that may need broader filesystem/env access).
+    use_sandbox = trigger in ("scheduled", "webhook", "chain")
+    if use_sandbox:
+        executor = SandboxedExecutor(
+            max_cpu_seconds=30,
+            max_memory_mb=256,
+            max_output_bytes=512_000,
+            allow_network=False,
+            max_file_size_mb=10,
+        )
+    else:
+        from execution.runner import ExecutionLayer
+        executor = ExecutionLayer()
 
     attempts = RETRY_ATTEMPTS.get(s.retry_policy or "none", 1)
     result = None
     for attempt in range(1, attempts + 1):
-        result = await ExecutionLayer().run(code=s.code, language=s.language, script_id=s.id,
-                                            secrets=user_secrets, venv_path=venv_path,
-                                            env_vars=env_vars)
+        if use_sandbox:
+            sandbox_result = await executor.run(
+                code=s.code,
+                language=s.language,
+                run_id=script_id,
+                inject_secrets=user_secrets,
+                timeout=60,
+            )
+            # Convert SandboxResult to the dict format the rest of this function expects
+            result = {
+                "status": sandbox_result.status,
+                "stdout": sandbox_result.stdout,
+                "stderr": sandbox_result.stderr,
+                "exit_code": sandbox_result.exit_code,
+                "duration_ms": sandbox_result.duration_ms,
+            }
+        else:
+            result = await executor.run(code=s.code, language=s.language, script_id=s.id,
+                                        secrets=user_secrets, venv_path=None,
+                                        env_vars=None)
         if result["status"] == "success":
             break
         logger.info(f"Script {s.id} ({s.name}) attempt {attempt}/{attempts} failed")

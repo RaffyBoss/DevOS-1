@@ -46,9 +46,14 @@ COPY --from=frontend-build /frontend/build/index.html /app/frontend/templates/in
 
 RUN mkdir -p data/scripts data/venvs data/evidence data/research data/autoresearch
 
+# Create non-root user for security
+RUN groupadd -r caraios && useradd -r -g caraios caraios \
+    && chown -R caraios:caraios /app/data /app/frontend
+
 ENV CARAIOS_PROFILE=micro
 ENV DATABASE_URL=sqlite+aiosqlite:///./data/caraios.db
 EXPOSE 8000
+USER caraios
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 
@@ -73,10 +78,16 @@ COPY --from=frontend-build /frontend/build/index.html /app/frontend/templates/in
 
 RUN mkdir -p data/scripts data/venvs data/evidence data/research data/autoresearch
 
+# Create non-root user for security
+RUN groupadd -r caraios && useradd -r -g caraios caraios \
+    && chown -R caraios:caraios /app/data /app/frontend
+
 ENV CARAIOS_PROFILE=standard
 ENV DATABASE_URL=sqlite+aiosqlite:///./data/caraios.db
+ENV WEB_CONCURRENCY=2
 EXPOSE 8000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+USER caraios
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-2}"]
 
 
 # ── Stage 3: Enterprise Profile (full multi-tenant, Redis, pgvector) ──────────
@@ -100,15 +111,21 @@ COPY --from=frontend-build /frontend/build/index.html /app/frontend/templates/in
 
 RUN mkdir -p data/scripts data/venvs data/evidence data/research data/autoresearch
 
+# Create non-root user for security
+RUN groupadd -r caraios && useradd -r -g caraios caraios \
+    && chown -R caraios:caraios /app/data /app/frontend
+
 ENV CARAIOS_PROFILE=enterprise
 ENV DATABASE_URL=sqlite+aiosqlite:///./data/caraios.db
+ENV WEB_CONCURRENCY=4
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+USER caraios
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-4}"]
 
 
 # ── Stage 4: Tauri Desktop App Build (optional) ────────────────────────────────

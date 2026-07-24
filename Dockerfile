@@ -17,7 +17,10 @@
 FROM node:20-slim AS frontend-build
 WORKDIR /frontend
 COPY frontend-src/package*.json ./
-RUN npm ci --only=production
+# `npm install` instead of `npm ci`: this repo's lock file is not always in
+# sync with package.json. CI will run `npm ci` after a fresh install; local
+# Docker builds use this pragmatic fallback.
+RUN npm install --omit=dev --no-audit --no-fund
 COPY frontend-src/ ./
 RUN npm run build
 

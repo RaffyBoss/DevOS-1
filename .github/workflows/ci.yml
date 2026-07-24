@@ -65,7 +65,7 @@ jobs:
           cache: "pip"
 
       - name: Install pip-audit
-        run: pip install pip-audit
+        run: pip install pip-audit || pip install pip-audit --break-system-packages
 
       - name: Scan Python dependencies
         run: pip-audit -r requirements.txt --desc --format=json --output=pip-audit-report.json || true
@@ -76,7 +76,7 @@ jobs:
       - name: Scan Node dependencies (frontend)
         run: |
           cd frontend-src
-          npm audit --audit-level=high --json > ../npm-audit-report.json || true
+          npm audit --audit-level=high --json > npm-audit-report.json || true
 
       - name: Check for HIGH/CRITICAL Node vulnerabilities
         run: python3 scripts/check_npm_audit.py

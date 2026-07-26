@@ -1,0 +1,26 @@
+{
+  "chain_id": "ce087aee-3de8-4a4c-b651-eae5d56399df",
+  "goal": "Replay test",
+  "identity_context": {},
+  "root_id": "66d6c96e-77a3-48d0-85ea-01b86e5f0c4b",
+  "nodes": {
+    "66d6c96e-77a3-48d0-85ea-01b86e5f0c4b": {
+      "node_id": "66d6c96e-77a3-48d0-85ea-01b86e5f0c4b",
+      "chain_id": "ce087aee-3de8-4a4c-b651-eae5d56399df",
+      "action": "write_python",
+      "actor_id": "user-1",
+      "delegation_chain": [],
+      "input_hash": null,
+      "output_hash": null,
+      "status": "pending",
+      "decision": "",
+      "latency_ms": 0,
+      "tokens_used": 0,
+      "error": null,
+      "predecessor_ids": [],
+      "successor_ids": [],
+      "timestamp": "2026-07-26T22:25:34.361843+00:00",
+      "metadata": {}
+    }
+  }
+}

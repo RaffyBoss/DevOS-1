@@ -18,9 +18,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.builder")
 
-PROJECTS_DIR = Path("data/projects")
+PROJECTS_DIR = DATA_DIR / "projects"
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
 

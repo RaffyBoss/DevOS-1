@@ -10,6 +10,17 @@ except RuntimeError:
     pass  # Already running in an event loop — tables should already exist
 
 
+async def _cleanup_user_data():
+    """Delete all user settings and workspace layouts from the test database."""
+    from sqlalchemy import delete
+    from core.database import AsyncSessionLocal, UserSettings, WorkspaceLayout
+    
+    async with AsyncSessionLocal() as session:
+        await session.execute(delete(WorkspaceLayout))
+        await session.execute(delete(UserSettings))
+        await session.commit()
+
+
 @pytest.fixture
 def client_with_auth():
     """Create a test client with auth disabled."""
@@ -19,6 +30,17 @@ def client_with_auth():
     with TestClient(app) as client:
         yield client
     settings.AUTH_ENABLED = True
+
+
+@pytest.fixture(autouse=True)
+def cleanup_before_each_test():
+    """Clean user settings and layouts before each test in this module."""
+    try:
+        asyncio.run(_cleanup_user_data())
+    except RuntimeError:
+        # Already in event loop, skip cleanup (FastAPI TestClient runs in same loop)
+        pass
+    yield
 
 
 class TestUserSettings:

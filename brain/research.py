@@ -22,9 +22,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.research")
 
-RESEARCH_DIR = Path("data/research")
+RESEARCH_DIR = DATA_DIR / "research"
 RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
 
 

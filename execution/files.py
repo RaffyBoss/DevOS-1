@@ -13,9 +13,11 @@ import shutil
 from pathlib import Path
 from datetime import datetime, timezone
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.files")
 
-PROJECTS_DIR = Path("data/projects")
+PROJECTS_DIR = DATA_DIR / "projects"
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_READ_BYTES = 2_000_000  # 2MB safety cap for inline read/write over the API

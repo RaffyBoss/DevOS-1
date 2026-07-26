@@ -22,9 +22,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.audit")
 
-AUDIT_DIR = Path("data")
+AUDIT_DIR = DATA_DIR
 AUDIT_DIR.mkdir(parents=True, exist_ok=True)
 AUDIT_DB = AUDIT_DIR / "audit.db"
 

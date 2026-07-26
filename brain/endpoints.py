@@ -10,8 +10,11 @@ Endpoints are stored in the database, not hardcoded — fully user-managed.
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 import httpx
+
+from core.config import DATA_DIR
 
 logger = logging.getLogger("devos.endpoints")
 
@@ -137,7 +140,7 @@ class EndpointRegistry:
     def _init_db(self):
         import sqlite3
         from pathlib import Path
-        db_path = Path("data/endpoints.db")
+        db_path = DATA_DIR / "endpoints.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.execute("PRAGMA journal_mode=WAL")

@@ -4,11 +4,12 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from core.config import settings
 from core.database import init_db
@@ -386,6 +387,13 @@ docs_url = None if not settings.ENABLE_API_DOCS else "/docs"
 redoc_url = None if not settings.ENABLE_API_DOCS else "/redoc"
 openapi_url = None if not settings.ENABLE_API_DOCS else "/openapi.json"
 
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+STATIC_DIR = FRONTEND_DIR / "static"
+TEMPLATES_DIR = FRONTEND_DIR / "templates"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(
     title="DevOS",
     version="3.0.0",
@@ -424,7 +432,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.ALLOWED_ORIGINS,
                    expose_headers=["X-Request-ID", "X-RateLimit-Remaining"])
 app.add_middleware(ObservabilityMiddleware)
 app.add_middleware(RateLimitMiddleware)
-app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 from api.routes import auth, chat, loop, scripts, memory, search, models, health, governance, extras, files, vcs, terminal, comms, workers, secrets as secrets_routes, user_settings, nodes
 from api.routes import capabilities, evidence, research, ponytail, workflow, enterprise, mcp as mcp_routes, marketplace, composer
 app.include_router(auth.router,       prefix="/api/auth",       tags=["auth"])
@@ -460,9 +468,11 @@ async def spa(request: Request, full_path: str):
     # Skip Jinja2 templating — index.html is a static React build
     # that doesn't need template rendering, and Starlette 0.37.2
     # has a cache-key bug with newer Jinja2 versions.
-    from fastapi.responses import FileResponse
-    import os
-    index_path = os.path.join(os.path.dirname(__file__), "frontend", "templates", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
+    index_candidates = [
+        TEMPLATES_DIR / "index.html",
+        FRONTEND_DIR / "index.html",
+    ]
+    for index_path in index_candidates:
+        if index_path.exists():
+            return FileResponse(index_path)
     return HTMLResponse(content="<html><body><h1>DevOS</h1><p>Frontend not found.</p></body></html>")

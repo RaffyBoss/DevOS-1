@@ -437,8 +437,8 @@ async def install_packages(req: InstallReq, request: Request, db=Depends(get_db)
 
     elif script.language == "node":
         import asyncio
-        from pathlib import Path
-        node_dir = Path("data/node_modules") / script.id
+        from core.config import DATA_DIR
+        node_dir = DATA_DIR / "node_modules" / script.id
         node_dir.mkdir(parents=True, exist_ok=True)
         proc = await asyncio.create_subprocess_exec(
             "npm", "install", "--no-audit", "--no-fund", *req.packages,

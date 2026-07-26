@@ -20,9 +20,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.obs")
 
-OBS_DB = Path("data/observability.db")
+OBS_DB = DATA_DIR / "observability.db"
 
 
 @dataclass

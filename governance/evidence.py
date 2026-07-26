@@ -21,9 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.evidence")
 
-EVIDENCE_DIR = Path("data/evidence")
+EVIDENCE_DIR = DATA_DIR / "evidence"
 EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
 

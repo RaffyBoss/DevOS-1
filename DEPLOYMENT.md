@@ -29,7 +29,7 @@ Copy `.env.example` to `.env` and set at least these:
 | Variable | Purpose | Example |
 |---|---|---|
 | `JWT_SECRET` | HS256 signing key for local tokens; also seeds the Fernet secrets vault | `openssl rand -hex 32` |
-| `DATABASE_URL` | SQLAlchemy async URL | `sqlite+aiosqlite:///./data/devos.db` |
+| `DATABASE_URL` | SQLAlchemy async URL. For SQLite (default), this is auto-computed from PROJECT_ROOT but can be overridden. For Postgres, use `postgresql+asyncpg://user:pass@host/db` | `sqlite+aiosqlite:///./data/devos.db` or omit to auto-compute |
 | `AUTH_MODE` | `local`, `supabase`, or `dual` | `dual` |
 | `ALLOWED_ORIGINS` | CORS allow-list | `https://devos.example.com` |
 
@@ -62,6 +62,27 @@ Set `DEFAULT_PROVIDER` to one of: `ollama`, `openai`, `openrouter`, `deepseek`,
 - `NTPY_URL` — push notifications
 - `SMTP_*` / `TELEGRAM_*` — notification channels
 - `CHROMADB_HOST` / `CHROMADB_PORT` — external Chroma vector store
+
+---
+
+## Local installation
+
+DevOS can be installed as a Python package with all dependencies declared:
+
+```bash
+# Development (editable install)
+pip install -e .
+
+# Production (installed to site-packages)
+pip install .
+```
+
+All required dependencies are declared in [`pyproject.toml`](pyproject.toml), including
+FastAPI, SQLAlchemy, APScheduler, authentication, and LLM client libraries.
+
+For minimal deployments (Micro profile), see `requirements-lite.txt` for the subset
+of dependencies needed for FastAPI, SQLite, and scheduler only (no Supabase, ChromaDB,
+Redis, or Postgres).
 
 ---
 

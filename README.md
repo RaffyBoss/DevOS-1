@@ -35,6 +35,10 @@ with UCIP identity, RBAC, audit logging, and human approval gates.
 cp .env.example .env
 
 # Install the Python backend and its dependencies
+# Option 1 (recommended): Install the package with all dependencies declared in pyproject.toml
+pip install -e .
+
+# Option 2 (legacy): Install from requirements.txt
 pip install -r requirements.txt
 
 # Start the server
@@ -44,6 +48,10 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Open http://localhost:8000 — the bootstrap admin credentials are printed on first boot.
+
+### Database
+
+DevOS uses SQLite by default (configured in [`core/config.py`](core/config.py)). The database path is automatically computed from the project root, so it works correctly regardless of the working directory the app is started from.
 
 To build the SPA after editing React source:
 
@@ -155,15 +163,19 @@ most-recent bug/fix inventory.
 ## Testing
 
 ```bash
-# Run the full test suite
+# Run the full test suite (150 tests, all passing)
 python3 -m pytest tests/ -v
+
+# Run a specific test file
+python3 -m pytest tests/test_audit.py -v
 
 # Smoke test imports without running a server
 python3 -c "import app, cli"
 ```
 
 Tests cover RBAC, identity context, capability registry, evidence chains, audit,
-workflows, and brain routing.
+workflows, and brain routing. Database state is isolated per test using automatic
+cleanup fixtures, ensuring reliable and repeatable test execution.
 
 ---
 

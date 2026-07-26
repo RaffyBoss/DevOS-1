@@ -12,11 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from core.config import settings
+from core.config import DATA_DIR, settings
 
 logger = logging.getLogger("devos.memory")
 
-MEMORY_DB = Path("data/memory.db")
+MEMORY_DB = DATA_DIR / "memory.db"
 
 
 class MemoryStore:

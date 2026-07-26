@@ -1,8 +1,13 @@
 """DevOS Core Config"""
 import os
 import secrets
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Persisted secret file for JWT_SECRET — if the user doesn't set JWT_SECRET
 # in .env, we generate one once and write it here so restarts don't silently
@@ -34,7 +39,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ALLOWED_ORIGINS: List[str] = ["http://localhost:8000"]
 
-    DATABASE_URL: str = "sqlite+aiosqlite:///./data/devos.db"
+    # Use absolute path to data directory to ensure database is found regardless of working directory
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{DATA_DIR / 'devos.db'}"
 
     AUTH_ENABLED: bool = True
     JWT_SECRET: str = ""  # default empty — replace with persisted secret if not set in .env

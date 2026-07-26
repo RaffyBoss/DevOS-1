@@ -33,10 +33,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.memory.graph")
 
-GRAPH_DB = Path("data/memory.db")  # same database file as memory/store.py —
-                                    # one Memory organ, not a second store
+GRAPH_DB = DATA_DIR / "memory.db"  # same database file as memory/store.py —
+                                   # one Memory organ, not a second store
 
 
 class KnowledgeGraph:

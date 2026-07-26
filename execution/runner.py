@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.execution")
 
 # Absolute paths, not relative -- SCRIPT_DIR is used both as the subprocess's
@@ -24,8 +26,8 @@ logger = logging.getLogger("devos.execution")
 # resolved a second time against the cwd, producing a doubled, nonexistent
 # path like data/scripts/data/scripts/{id}.py (found via testing in record.md
 # Session 22 — every script run through this path was silently broken).
-SCRIPT_DIR = Path("data/scripts").resolve()
-VENV_DIR   = Path("data/venvs").resolve()
+SCRIPT_DIR = (DATA_DIR / "scripts").resolve()
+VENV_DIR   = (DATA_DIR / "venvs").resolve()
 SCRIPT_DIR.mkdir(parents=True, exist_ok=True)
 VENV_DIR.mkdir(parents=True, exist_ok=True)
 

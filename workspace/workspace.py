@@ -10,9 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
+
 logger = logging.getLogger("devos.workspace")
 
-WORKSPACE_DIR = Path("data/workspace")
+WORKSPACE_DIR = DATA_DIR / "workspace"
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
 

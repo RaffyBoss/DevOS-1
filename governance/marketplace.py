@@ -24,11 +24,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from core.config import DATA_DIR
 from governance.identity_context import TenantTier
 
 logger = logging.getLogger("devos.marketplace")
 
-MARKETPLACE_DIR = Path("data/marketplace")
+MARKETPLACE_DIR = DATA_DIR / "marketplace"
 MARKETPLACE_DIR.mkdir(parents=True, exist_ok=True)
 
 

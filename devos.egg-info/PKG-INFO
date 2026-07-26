@@ -1,0 +1,215 @@
+Metadata-Version: 2.4
+Name: devos
+Version: 4.0.0
+Summary: DevOS agency operating system
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
+# DevOS V4 — Agency Operating System
+
+![CI](https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/actions/workflows/ci.yml/badge.svg)
+
+A production-oriented AI operating system for autonomous and human-in-the-loop agency work.
+DevOS routes user goals through a multi-provider Brain, dispatches them to specialized
+worker personas, executes generated code in a sandboxed layer, and governs every action
+with UCIP identity, RBAC, audit logging, and human approval gates.
+
+---
+
+## What DevOS is
+
+- **Brain / router** ([`brain/router.py`](brain/router.py)) — picks the right model/provider
+  for a task, with automatic fallback, budget ceilings, and latency-aware routing.
+- **Cognitive system** ([`cognitive/`](cognitive/)) — intent parsing, goal decomposition,
+  parallel coordination, reflection, and the 11-stage Ponytail coding pipeline.
+- **Execution layer** ([`execution/`](execution/)) — runs Python/Bash/Node code in a
+  sandbox with resource limits, manages project files, git, terminal, and web search.
+- **Governance layer** ([`governance/`](governance/)) — UCIP trust tiers, RBAC, immutable
+  audit logs, EvidenceChain DAG, billing, rate limiting, and encrypted secrets vault.
+- **Memory layer** ([`memory/`](memory/)) — episodic/semantic/working/long-term memory with
+  a knowledge graph and optional pgvector backend.
+- **Workers** ([`workers/`](workers/)) — 106+ worker personas dispatched against declared
+  capability contracts.
+- **Frontend** ([`frontend-src/`](frontend-src/)) — React IDE with Monaco, terminal,
+  chat, workflow editor, research panel, Flow automation UI, and settings.
+
+---
+
+## Quick start
+
+```bash
+# Copy and edit the environment template
+cp .env.example .env
+
+# Install the Python backend and its dependencies
+pip install -r requirements.txt
+
+# Start the server
+python3 cli.py start
+# or
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+Open http://localhost:8000 — the bootstrap admin credentials are printed on first boot.
+
+To build the SPA after editing React source:
+
+```bash
+python3 cli.py build
+```
+
+---
+
+## Authentication
+
+DevOS supports **dual-mode authentication**:
+
+| Mode | Behavior | Use case |
+|---|---|---|
+| `local` | Local bcrypt + HS256 JWT only | Air-gapped / self-hosted |
+| `supabase` | Supabase access tokens only | Cloud / team deployments |
+| `dual` (default) | Local JWT first, then Supabase JWKS/legacy HS256 | Migration fallback |
+
+Set `AUTH_MODE` in `.env`.  The frontend signs in through Supabase when configured,
+then sends Supabase's token to the backend; the backend syncs a local `User` row so
+SQLAlchemy relationships remain unchanged.  See [`core/config.py`](core/config.py:42) and
+[`api/routes/auth.py`](api/routes/auth.py:1).
+
+---
+
+## Core architecture
+
+```
+User Intent
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Brain Layer                                                 │
+│  • brain/router.py  — provider routing + fallback           │
+│  • brain/llm.py     — multi-provider streaming chat         │
+│  • brain/research.py — deep web research with citations     │
+│  • brain/workflow.py — step-based workflow engine           │
+│  • brain/builder.py  — full-stack project generator           │
+├─────────────────────────────────────────────────────────────┤
+│ Cognitive System                                            │
+│  • cognitive/intent.py — intent parsing                       │
+│  • cognitive/decomposer.py — goal → subtask DAG               │
+│  • cognitive/coordinator.py — parallel execution              │
+│  • cognitive/reflector.py — post-run critique                 │
+│  • cognitive/ponytail.py — 11-stage coding pipeline           │
+├─────────────────────────────────────────────────────────────┤
+│ Execution Layer                                             │
+│  • execution/runner.py — Python/Bash/Node runner             │
+│  • execution/files.py — project-scoped file I/O              │
+│  • execution/script_runner.py — scheduled/manual/webhooks    │
+│  • execution/search.py — Tavily/SearXNG web search            │
+│  • execution/terminal.py — interactive xterm.js PTY            │
+│  • execution/vcs.py — git operations                           │
+├─────────────────────────────────────────────────────────────┤
+│ Governance Layer (UCIP)                                     │
+│  • governance/ucip.py — policy engine + injection scanner     │
+│  • governance/identity_context.py — identity / tokens / tiers │
+│  • governance/rbac.py — tier + capability-token access        │
+│  • governance/audit.py — immutable audit events               │
+│  • governance/evidence.py — execution provenance DAG          │
+│  • governance/billing.py — usage metering                     │
+│  • governance/marketplace.py — capability store                │
+│  • governance/ratelimit.py — rate limiting                     │
+│  • governance/hitl.py — human-in-the-loop approvals            │
+│  • governance/sandbox.py — resource-limited sandbox            │
+│  • governance/secrets_vault.py — encrypted secrets             │
+├─────────────────────────────────────────────────────────────┤
+│ Memory Layer                                                │
+│  • memory/store.py — episodic/semantic/long-term recall        │
+│  • memory/graph.py — knowledge graph                         │
+│  • memory/working.py — TTL session cache                       │
+├─────────────────────────────────────────────────────────────┤
+│ Communications                                              │
+│  • communications/bus.py — async pub/sub + SSE                 │
+│  • communications/mcp.py — MCP server/client transport         │
+├─────────────────────────────────────────────────────────────┤
+│ Workers                                                     │
+│  • workers/runtime.py — persona execution wrapper              │
+│  • brain/agents/ — 106+ worker personas                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Key production readiness highlights
+
+- **Dual auth with Supabase-primary + local fallback** ([`api/routes/auth.py`](api/routes/auth.py:1))
+- **Encrypted secrets vault** with per-secret salt and PBKDF2 key derivation
+  ([`governance/secrets_vault.py`](governance/secrets_vault.py:1))
+- **Human-in-the-loop gates** for destructive actions via [`governance/hitl.py`](governance/hitl.py:1)
+- **Sandboxed execution** with `resource.prlimit` applied to child PIDs
+  ([`governance/sandbox.py`](governance/sandbox.py:243))
+- **Immutable audit trail** and EvidenceChain DAG
+  ([`governance/audit.py`](governance/audit.py), [`governance/evidence.py`](governance/evidence.py))
+- **Project-scoped file I/O** with path-escape prevention
+  ([`execution/files.py`](execution/files.py:35))
+- **Rate limiting + structured logging** ([`governance/ratelimit.py`](governance/ratelimit.py),
+  [`core/config.py`](core/config.py:66))
+- **JWT issuer/audience binding** to prevent cross-service replay
+  ([`api/routes/auth.py`](api/routes/auth.py:47))
+
+See [`plans/SECURITY_AUDIT.md`](plans/SECURITY_AUDIT.md) for the line-by-line audit
+(P5 / P5a–P5e) and [`plans/bug-audit-plan.md`](plans/bug-audit-plan.md) for the
+most-recent bug/fix inventory.
+
+---
+
+## Testing
+
+```bash
+# Run the full test suite
+python3 -m pytest tests/ -v
+
+# Smoke test imports without running a server
+python3 -c "import app, cli"
+```
+
+Tests cover RBAC, identity context, capability registry, evidence chains, audit,
+workflows, and brain routing.
+
+---
+
+## CLI
+
+```bash
+python3 cli.py start       # Start the server
+python3 cli.py build       # Build the React frontend SPA
+python3 cli.py doctor      # System health check
+python3 cli.py audit       # View audit log
+python3 cli.py billing     # View billing usage
+python3 cli.py marketplace # Browse capability marketplace
+python3 cli.py workflow    # Manage workflows
+python3 cli.py research    # Run deep research
+python3 cli.py version     # Show version info
+```
+
+---
+
+## API documentation
+
+FastAPI auto-generated docs are available at `/docs` once the server is running:
+http://localhost:8000/docs
+
+The frontend expects the API at the same origin (`/api/*`).  CORS origins can be
+configured via `ALLOWED_ORIGINS` in `.env`.
+
+---
+
+## Deployment
+
+For environment variables, container profiles, reverse-proxy setup, and security
+checklist, see [`DEPLOYMENT.md`](DEPLOYMENT.md) (created during P7d).
+
+---
+
+## Project status
+
+DevOS V4 is functionally complete for the core Agency OS feature set.  The remaining
+high-value items are tracked in [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md):
+frontend HITL notifications, live LLM/browser/docker smoke tests (which cannot be
+run in this sandboxed environment), and packaging the Tauri desktop app.

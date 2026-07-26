@@ -140,6 +140,11 @@ class Settings(BaseSettings):
     # API documentation (OpenAPI/Swagger/Redoc) — disable in production
     ENABLE_API_DOCS: bool = True
 
+    # PTY terminal idle timeout (seconds) — kill abandoned shell sessions
+    # after this many seconds with no attached connections and no output.
+    # 0 = never timeout (disable reaper).
+    PTY_IDLE_TIMEOUT: int = 1800  # 30 minutes
+
     # Notifications
     NTFY_URL: str = ""
     SMTP_HOST: str = ""

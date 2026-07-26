@@ -12,7 +12,7 @@ const WS_BASE = process.env.REACT_APP_DEVOS_URL
   : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
 export default function TerminalPanel() {
-  const { terminalOpen, setTerminalOpen } = useStore();
+  const { terminalOpen, setTerminalOpen, currentProject } = useStore();
   const containerRef = useRef(null);
   const termRef = useRef(null);
   const wsRef = useRef(null);
@@ -47,10 +47,14 @@ export default function TerminalPanel() {
     termRef.current = term;
     fitRef.current = fitAddon;
 
-    const ws = new WebSocket(`${WS_BASE}?type=terminal`);
+    const projectId = currentProject || "default";
+    const ws = new WebSocket(`${WS_BASE}/api/terminal/${projectId}/ws`);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      // Send auth token as first message (matching backend's auth_msg handling)
+      const token = localStorage.getItem("devos_token") || "";
+      ws.send(JSON.stringify({ token }));
       term.writeln("\x1b[32m● DevOS Terminal ready\x1b[0m");
     };
     ws.onmessage = (e) => {
@@ -85,7 +89,7 @@ export default function TerminalPanel() {
       termRef.current = null;
       wsRef.current = null;
     };
-  }, [terminalOpen]);
+  }, [terminalOpen, currentProject]);
 
   if (!terminalOpen) return null;
 

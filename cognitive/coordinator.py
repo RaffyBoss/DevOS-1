@@ -27,17 +27,22 @@ logger = logging.getLogger("devos.cognitive.coordinator")
 
 class SubtaskResult:
     def __init__(self, subtask_id: str, worker_slug: str, success: bool,
-                 output: str, delegation_chain: list[str]):
+                 output: str, delegation_chain: list[str],
+                 confidence: float = None, parse_failed: bool = False):
         self.subtask_id = subtask_id
         self.worker_slug = worker_slug
         self.success = success
         self.output = output
         self.delegation_chain = delegation_chain
+        self.confidence = confidence
+        self.parse_failed = parse_failed
 
     def to_dict(self) -> dict:
         return {"subtask_id": self.subtask_id, "worker_slug": self.worker_slug,
                 "success": self.success, "output": self.output,
-                "delegation_chain": self.delegation_chain}
+                "delegation_chain": self.delegation_chain,
+                "confidence": self.confidence,
+                "parse_failed": self.parse_failed}
 
 
 class Coordinator:
@@ -100,6 +105,22 @@ class Coordinator:
                     logger.warning(f"[coordinator] subtask {subtask.id} failed: {e}")
                     result = SubtaskResult(subtask.id, worker_slug=persona.slug if persona else "none",
                                            success=False, output=f"error: {e}", delegation_chain=[])
+
+                # Reflect on the subtask result to get a confidence score
+                try:
+                    from cognitive.reflector import Reflector
+                    from brain.llm import BrainLLM
+                    ref_brain = BrainLLM(provider, model, user_id=requester_identity.user_id)
+                    reflector = Reflector()
+                    reflection = await reflector.reflect(
+                        subtask.description, result.output, ref_brain,
+                    )
+                    result.confidence = reflection.confidence
+                    result.parse_failed = reflection.parse_failed
+                except Exception as ref_err:
+                    logger.warning(f"[coordinator] reflection failed for {subtask.id}: {ref_err}")
+                    result.confidence = None
+                    result.parse_failed = True
                 subtask.status = "done" if result.success else "failed"
                 if on_subtask_done:
                     await on_subtask_done(result)

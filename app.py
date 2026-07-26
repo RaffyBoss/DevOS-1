@@ -420,7 +420,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.ALLOWED_ORIGINS,
 app.add_middleware(ObservabilityMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
-from api.routes import auth, chat, loop, scripts, memory, search, models, health, governance, extras, files, vcs, terminal, comms, workers, secrets as secrets_routes
+from api.routes import auth, chat, loop, scripts, memory, search, models, health, governance, extras, files, vcs, terminal, comms, workers, secrets as secrets_routes, user_settings, nodes
 from api.routes import capabilities, evidence, research, ponytail, workflow, enterprise, mcp as mcp_routes, marketplace, composer
 app.include_router(auth.router,       prefix="/api/auth",       tags=["auth"])
 app.include_router(chat.router,       prefix="/api/chat",       tags=["chat"])
@@ -447,6 +447,8 @@ app.include_router(enterprise.router,   tags=["enterprise"])
 app.include_router(mcp_routes.router,   prefix="/api/mcp",         tags=["mcp"])
 app.include_router(marketplace.router,  prefix="/api/marketplace", tags=["marketplace"])
 app.include_router(composer.router,     prefix="/api/composer",    tags=["composer"])
+app.include_router(user_settings.router)
+app.include_router(nodes.router)
 
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def spa(request: Request, full_path: str):

@@ -46,6 +46,11 @@ class ChatSession(Base):
     model: Mapped[str] = mapped_column(String(128), default="")
     mode: Mapped[str] = mapped_column(String(16), default="chat")  # chat | loop
     system_prompt: Mapped[Optional[str]] = mapped_column(Text)
+    # Node-scoped chat: when set, this session is pinned to a specific
+    # workflow node so it "remembers everything about it" independently
+    # of other nodes. NULL means a general-purpose chat session.
+    node_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    workflow_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     user: Mapped["User"] = relationship(back_populates="sessions")
@@ -148,6 +153,28 @@ class Secret(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     owner: Mapped["User"] = relationship(back_populates="secrets")
 
+class UserSettings(Base):
+    """Per-user key-value settings (theme, density, font, etc.) — persisted
+    server-side so preferences survive browser/device changes."""
+    __tablename__ = "user_settings"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True)
+    settings_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class WorkspaceLayout(Base):
+    """Named workspace layout snapshots — window/panel positions the user can
+    save and restore (e.g. "Workflow Builder", "Debugging")."""
+    __tablename__ = "workspace_layouts"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String(128))
+    layout_json: Mapped[dict] = mapped_column(JSON)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 
 async def init_db():
     async with engine.begin() as conn:
@@ -193,6 +220,14 @@ async def _migrate_missing_columns(conn):
     await _add_column_if_missing(
         "users", "supabase_id",
         "ALTER TABLE users ADD COLUMN supabase_id VARCHAR",
+    )
+    await _add_column_if_missing(
+        "chat_sessions", "node_id",
+        "ALTER TABLE chat_sessions ADD COLUMN node_id VARCHAR",
+    )
+    await _add_column_if_missing(
+        "chat_sessions", "workflow_id",
+        "ALTER TABLE chat_sessions ADD COLUMN workflow_id VARCHAR",
     )
 
 async def get_db():

@@ -65,6 +65,9 @@ class SandboxResult:
     duration_ms: int
     sandbox_violations: list[str] = field(default_factory=list)
     started_at:  datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # Resource usage reported after execution (for live CPU/memory in hover previews)
+    peak_memory_kb: int = 0       # ru_maxrss (kilobytes on Linux)
+    cpu_time_ms: int = 0          # ru_utime + ru_stime in milliseconds
 
     def to_dict(self) -> dict:
         return {
@@ -75,6 +78,8 @@ class SandboxResult:
             "exit_code":   self.exit_code,
             "duration_ms": self.duration_ms,
             "sandbox_violations": self.sandbox_violations,
+            "peak_memory_kb": self.peak_memory_kb,
+            "cpu_time_ms": self.cpu_time_ms,
         }
 
     def to_brain_summary(self) -> str:
@@ -205,6 +210,16 @@ class SandboxedExecutor:
 
         duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
 
+        # Collect resource usage (peak memory, CPU time) from the child process
+        peak_memory_kb = 0
+        cpu_time_ms = 0
+        try:
+            usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+            peak_memory_kb = usage.ru_maxrss
+            cpu_time_ms = int((usage.ru_utime + usage.ru_stime) * 1000)
+        except (AttributeError, ValueError, OSError, resource.error):
+            pass  # Not on Linux, or resource module unavailable
+
         # Truncate and decode output
         max_b = self.max_output_bytes
         stdout_b = stdout_b[:max_b]
@@ -222,6 +237,8 @@ class SandboxedExecutor:
             stdout=stdout, stderr=stderr,
             exit_code=exit_code, duration_ms=duration_ms,
             sandbox_violations=violations,
+            peak_memory_kb=peak_memory_kb,
+            cpu_time_ms=cpu_time_ms,
         )
 
     def _build_safe_env(self, inject_secrets: dict) -> dict:

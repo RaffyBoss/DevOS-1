@@ -32,10 +32,22 @@ AUTOMATION_TEMPLATES = [
         "description": "Summarizes yesterday's notes/memory and emails a digest every morning.",
         "packages": ["requests"],
         "code": (
-            "import requests\n\n"
+            "import os\n"
+            "from communications.email import send_email_sync\n\n"
             "print('Fetching daily digest...')\n"
-            "# TODO: wire to /api/memory and SMTP settings\n"
-            "print('Digest sent.')\n"
+            "try:\n"
+            "    recipient = os.environ.get('SECRET_DIGEST_EMAIL') or os.environ.get('SMTP_FROM')\n"
+            "    if not recipient:\n"
+            "        print('Set a DIGEST_EMAIL secret or SMTP_FROM env var first.')\n"
+            "    else:\n"
+            "        send_email_sync(\n"
+            "            to=recipient,\n"
+            "            subject='DevOS Daily Digest',\n"
+            "            body='Your daily digest is ready. Check /api/memory/recent for details.',\n"
+            "        )\n"
+            "        print('Digest sent.')\n"
+            "except Exception as e:\n"
+            "    print(f'Digest failed: {e}')\n"
         ),
         "schedule_type": "cron",
         "schedule_value": "0 8 * * *",

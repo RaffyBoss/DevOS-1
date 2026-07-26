@@ -18,13 +18,24 @@ class ChatReq(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+    # Node-scoped chat: when set, the session is pinned to this workflow node
+    node_id: Optional[str] = None
+    workflow_id: Optional[str] = None
 
 @router.get("/sessions")
 async def list_sessions(request: Request, db=Depends(get_db)):
     user = await get_current_user(request, db)
-    r = await db.execute(select(ChatSession).where(ChatSession.user_id==user.id).order_by(desc(ChatSession.updated_at)).limit(50))
+    r = await db.execute(
+        select(ChatSession)
+        .where(ChatSession.user_id == user.id, ChatSession.node_id == None)  # noqa: E711
+        .order_by(desc(ChatSession.updated_at))
+        .limit(50)
+    )
     sessions = r.scalars().all()
-    return [{"id":s.id,"title":s.title,"provider":s.provider,"model":s.model,"mode":s.mode,"updated_at":s.updated_at} for s in sessions]
+    return [{"id": s.id, "title": s.title, "provider": s.provider,
+             "model": s.model, "mode": s.mode, "node_id": s.node_id,
+             "workflow_id": s.workflow_id, "updated_at": s.updated_at}
+            for s in sessions]
 
 @router.delete("/sessions/{sid}")
 async def del_session(sid: str, request: Request, db=Depends(get_db)):
@@ -34,6 +45,43 @@ async def del_session(sid: str, request: Request, db=Depends(get_db)):
     if not s: from fastapi import HTTPException; raise HTTPException(404)
     await db.delete(s); await db.commit()
     return {"status":"deleted"}
+
+@router.get("/node-session")
+async def get_node_session(
+    request: Request,
+    workflow_id: str,
+    node_id: str,
+    db=Depends(get_db),
+):
+    """Get or create a chat session scoped to a specific workflow node."""
+    user = await get_current_user(request, db)
+    r = await db.execute(
+        select(ChatSession).where(
+            ChatSession.user_id == user.id,
+            ChatSession.node_id == node_id,
+            ChatSession.workflow_id == workflow_id,
+        )
+    )
+    session = r.scalar_one_or_none()
+    if not session:
+        session = ChatSession(
+            user_id=user.id,
+            title="Node Chat",
+            node_id=node_id,
+            workflow_id=workflow_id,
+            system_prompt=_build_node_context_prompt(workflow_id, node_id),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+    return {
+        "id": session.id,
+        "title": session.title,
+        "node_id": session.node_id,
+        "workflow_id": session.workflow_id,
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+    }
 
 @router.get("/sessions/{sid}/messages")
 async def get_messages(sid: str, request: Request, db=Depends(get_db)):
@@ -148,13 +196,32 @@ async def explain(req: ExplainReq, request: Request, db=Depends(get_db)):
 async def send(req: ChatReq, request: Request, db=Depends(get_db)):
     user = await get_current_user(request, db)
     session = None
-    if req.session_id:
-        r = await db.execute(select(ChatSession).where(ChatSession.id==req.session_id, ChatSession.user_id==user.id))
+    # If node_id is provided, look up an existing node-scoped session first
+    if req.node_id and req.workflow_id:
+        r = await db.execute(
+            select(ChatSession).where(
+                ChatSession.user_id == user.id,
+                ChatSession.node_id == req.node_id,
+                ChatSession.workflow_id == req.workflow_id,
+            )
+        )
+        session = r.scalar_one_or_none()
+    elif req.session_id:
+        r = await db.execute(
+            select(ChatSession).where(
+                ChatSession.id == req.session_id,
+                ChatSession.user_id == user.id,
+            )
+        )
         session = r.scalar_one_or_none()
     if not session:
-        session = ChatSession(user_id=user.id, title=req.message[:60],
-                               provider=req.provider or "ollama", model=req.model or "",
-                               mode="chat", system_prompt=req.system_prompt)
+        session = ChatSession(
+            user_id=user.id, title=req.message[:60],
+            provider=req.provider or "ollama", model=req.model or "",
+            mode="chat", system_prompt=req.system_prompt,
+            node_id=req.node_id,
+            workflow_id=req.workflow_id,
+        )
         db.add(session); await db.flush()
 
     # Load history
@@ -191,4 +258,17 @@ async def send(req: ChatReq, request: Request, db=Depends(get_db)):
         yield f"data: {json.dumps({'done':True,'session_id':session.id})}\n\n"
 
     return StreamingResponse(sse(), media_type="text/event-stream",
-                             headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+                              headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+
+
+def _build_node_context_prompt(workflow_id: str, node_id: str) -> str:
+    """Build a system prompt that injects the node's current context into
+    the chat so the LLM genuinely knows about this specific node."""
+    prompt = (
+        f"You are DevOS, an AI assistant. You are currently in a chat scoped "
+        f"to workflow node '{node_id}' in workflow '{workflow_id}'. "
+        "Answer questions about this node's configuration, inputs, outputs, "
+        "and execution history. If asked about other nodes, note that you are "
+        "only seeing this node's context."
+    )
+    return prompt

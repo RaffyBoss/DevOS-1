@@ -152,6 +152,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[shutdown] audit logger close: {e}")
     try:
+        from execution.pty_session import kill_all_sessions
+        await kill_all_sessions()
+    except Exception as e:
+        logger.warning(f"[shutdown] PTY sessions kill: {e}")
+    try:
         from core.database import engine
         await engine.dispose()
     except Exception as e:

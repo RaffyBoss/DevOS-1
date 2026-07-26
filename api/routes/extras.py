@@ -76,6 +76,47 @@ async def project_files(pid: str, request: Request, db=Depends(get_db)):
     if not files: raise HTTPException(404)
     return {"files": files}
 
+@router.delete("/projects/{pid}")
+async def delete_project(pid: str, request: Request, db=Depends(get_db)):
+    """Permanently delete a project — kills any active PTY session for it,
+    then removes the project directory from disk. Gated through HITL like
+    all other destructive filesystem actions."""
+    user = await get_current_user(request, db)
+
+    # Verify project exists before going through HITL
+    from brain.builder import ProjectBuilder
+    from execution.files import PROJECTS_DIR
+    project_dir = (PROJECTS_DIR / user.id / pid).resolve()
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise HTTPException(404, f"Project not found: {pid}")
+
+    # Route through HITL gate — same trust model as delete_file
+    from governance.hitl import HITLQueue
+    queue = HITLQueue()
+    hitl_req = await queue.submit(
+        loop_id="ide-direct", agent_id="human-ide-user", user_id=user.id,
+        action="delete_project", action_input=pid,
+        description=f"Delete project '{pid}' and all its files",
+        cap_required="ucip:filesystem.delete",
+        reason="Irreversible: project directory and all files will be permanently removed",
+    )
+    approved = await queue.wait_for_decision(hitl_req.id)
+    if not approved:
+        raise HTTPException(403, "Project deletion not approved (denied or timed out)")
+
+    # Kill any active PTY session for this project
+    try:
+        from execution.pty_session import kill_session
+        await kill_session(user.id, pid)
+    except Exception:
+        pass  # best-effort — session may not exist
+
+    # Remove the project directory
+    import shutil
+    shutil.rmtree(project_dir, ignore_errors=True)
+
+    return {"deleted": True, "project_id": pid}
+
 @router.get("/stacks")
 async def list_stacks():
     from brain.builder import STACK_TEMPLATES

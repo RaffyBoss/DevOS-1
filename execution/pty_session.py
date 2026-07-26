@@ -104,57 +104,33 @@ class PtySession:
         return len(self._clients)
 
     async def start(self) -> None:
-        """Spawn the bash shell process via pty.fork()."""
+        """Spawn the bash shell process via pty.fork() — the standard,
+        well-tested way to get a child process connected to a PTY."""
         if self._started:
             return
 
-        # Create a PTY pair
-        master_fd, slave_fd = pty.openpty()
+        pid, master_fd = pty.fork()
 
-        # Set the PTY size to a reasonable default
-        self._set_pty_size(master_fd, 80, 24)
-
-        # Spawn bash in the project directory
-        pid = os.fork()
         if pid == 0:
-            # Child process
-            os.close(master_fd)
-            os.setsid()
-
-            # Set controlling terminal
-            tty_name = os.ttyname(slave_fd)
-            fd = os.open(tty_name, os.O_RDWR)
-            os.close(slave_fd)
-            os.close(0)
-            os.close(1)
-            os.close(2)
-            os.dup(fd)
-            os.dup(fd)
-            os.dup(fd)
-
-            # Set terminal size
-            try:
-                fcntl.ioctl(fd, termios.TIOCSCTTY, 0)
-            except Exception:
-                pass
-
-            # Change to project directory
+            # ── Child process ───────────────────────────────────────
+            # pty.fork() already set up the PTY as stdin/stdout/stderr
+            # and made us a session leader with the PTY as controlling tty.
             os.chdir(str(self.root))
 
-            # Set environment
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
             env["HOME"] = str(self.root)
             env["PS1"] = "\\[\\e[32m\\]\\w\\[\\e[0m\\] $ "
 
-            # Execute bash
             os.execvpe("bash", ["bash", "--norc", "--noprofile"], env)
             os._exit(1)
 
-        # Parent process
-        os.close(slave_fd)
+        # ── Parent process ──────────────────────────────────────────
         self._fd = master_fd
         self._pid = pid
+
+        # Set a reasonable default window size
+        self._set_pty_size(master_fd, 80, 24)
 
         # Apply resource limits to the child process
         try:

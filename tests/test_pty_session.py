@@ -2,6 +2,7 @@
 import asyncio
 import os
 import pytest
+import pytest_asyncio
 import time
 from unittest.mock import MagicMock, patch
 
@@ -25,14 +26,14 @@ class MockWebSocket:
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-@pytest.fixture
-def session():
+@pytest_asyncio.fixture
+async def session():
     """Create a PtySession for a test project."""
     s = PtySession(user_id="test-user", project_id="test-project")
     yield s
     # Cleanup
     if s._started:
-        asyncio.get_event_loop().run_until_complete(s.kill())
+        await s.kill()
 
 
 @pytest.fixture(autouse=True)
